@@ -8,6 +8,7 @@ import {
     TextInput,
     RefreshControl,
     Alert,
+    ScrollView as RNScrollView,
     ActivityIndicator,
     Image,
     Modal,
@@ -30,6 +31,10 @@ export default function HomeScreen() {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState<TextCategory | 'all' | 'favorites'>('all');
     const [showLogoutModal, setShowLogoutModal] = useState(false);
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [deleteNoteId, setDeleteNoteId] = useState<string | null>(null);
+    const [showDetailModal, setShowDetailModal] = useState(false);
+    const [detailNote, setDetailNote] = useState<TextEntry | null>(null);
 
     const fetchEntries = useCallback(async () => {
         try {
@@ -68,26 +73,21 @@ export default function HomeScreen() {
         await supabase.auth.signOut();
     };
 
-    const handleDelete = async (id: string) => {
-        Alert.alert(
-            'Hapus Note?',
-            'Data yang dihapus tidak dapat dikembalikan.',
-            [
-                { text: 'Batal', style: 'cancel' },
-                {
-                    text: 'Ya, Hapus',
-                    style: 'destructive',
-                    onPress: async () => {
-                        try {
-                            await supabase.from('text_entries').delete().eq('id', id);
-                            fetchEntries();
-                        } catch (error) {
-                            Alert.alert('Error', 'Gagal menghapus note');
-                        }
-                    },
-                },
-            ]
-        );
+    const handleDelete = (id: string) => {
+        setDeleteNoteId(id);
+        setShowDeleteModal(true);
+    };
+
+    const confirmDelete = async () => {
+        if (!deleteNoteId) return;
+        try {
+            await supabase.from('text_entries').delete().eq('id', deleteNoteId);
+            fetchEntries();
+        } catch (error) {
+            Alert.alert('Error', 'Gagal menghapus note');
+        }
+        setShowDeleteModal(false);
+        setDeleteNoteId(null);
     };
 
     const handleToggleFavorite = async (id: string, isFavorite: boolean) => {
@@ -173,7 +173,7 @@ export default function HomeScreen() {
 
             {/* Search */}
             <View style={styles.searchContainer}>
-                <Text style={styles.searchIcon}>🔍</Text>
+                <Text style={styles.searchIcon}>⌕</Text>
                 <TextInput
                     style={styles.searchInput}
                     placeholder="Cari Note..."
@@ -183,76 +183,79 @@ export default function HomeScreen() {
                 />
             </View>
 
-            {/* Categories */}
-            <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.categoriesContainer}
-                contentContainerStyle={{ paddingRight: 20 }}
-            >
-                {CATEGORIES.map((item) => {
-                    const isActive = selectedCategory === item;
-                    const isSpecial = item === 'all' || item === 'favorites';
-                    const config = !isSpecial ? CATEGORY_CONFIG[item as TextCategory] : null;
-                    const label = isSpecial
-                        ? (item === 'all' ? 'Semua' : 'Favorit')
-                        : config?.label;
+            {/* Entries List with Categories as Header */}
+            <FlatList
+                data={filteredEntries}
+                keyExtractor={(item) => item.id}
+                contentContainerStyle={styles.listContainer}
+                ListHeaderComponent={
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        style={styles.categoriesInList}
+                        contentContainerStyle={{ paddingRight: 20 }}
+                    >
+                        {CATEGORIES.map((item) => {
+                            const isActive = selectedCategory === item;
+                            const isSpecial = item === 'all' || item === 'favorites';
+                            const config = !isSpecial ? CATEGORY_CONFIG[item as TextCategory] : null;
+                            const label = isSpecial
+                                ? (item === 'all' ? 'Semua' : 'Favorit')
+                                : config?.label;
 
-                    return (
-                        <TouchableOpacity
-                            key={item}
-                            style={[
-                                styles.categoryButton,
-                                isActive && styles.categoryButtonActive,
-                                isActive && config && { borderColor: config.color, backgroundColor: config.bg }
-                            ]}
-                            onPress={() => setSelectedCategory(item)}
-                        >
-                            <Text style={[
-                                styles.categoryText,
-                                isActive && styles.categoryTextActive,
-                                isActive && config && { color: config.color }
-                            ]}>
-                                {label}
-                            </Text>
-                        </TouchableOpacity>
-                    );
-                })}
-            </ScrollView>
-
-            {/* Entries List */}
-            {filteredEntries.length === 0 ? (
-                <View style={styles.emptyContainer}>
-                    <Text style={styles.emptyIcon}>📂</Text>
-                    <Text style={styles.emptyTitle}>
-                        {searchQuery ? 'Tidak ditemukan' : 'Belum ada note'}
-                    </Text>
-                    <Text style={styles.emptySubtitle}>
-                        {searchQuery ? 'Coba kata kunci lain' : 'Mulai simpan catatan Anda'}
-                    </Text>
-                </View>
-            ) : (
-                <FlatList
-                    data={filteredEntries}
-                    keyExtractor={(item) => item.id}
-                    contentContainerStyle={styles.listContainer}
-                    refreshControl={
-                        <RefreshControl
-                            refreshing={refreshing}
-                            onRefresh={handleRefresh}
-                            tintColor="#3b82f6"
-                        />
-                    }
-                    renderItem={({ item }) => (
-                        <EntryCard
-                            entry={item}
-                            onEdit={() => navigation.navigate('AddEdit', { entry: item })}
-                            onDelete={() => handleDelete(item.id)}
-                            onToggleFavorite={(isFavorite) => handleToggleFavorite(item.id, isFavorite)}
-                        />
-                    )}
-                />
-            )}
+                            return (
+                                <TouchableOpacity
+                                    key={item}
+                                    style={[
+                                        styles.categoryButton,
+                                        isActive && styles.categoryButtonActive,
+                                        isActive && config && { borderColor: config.color, backgroundColor: config.bg }
+                                    ]}
+                                    onPress={() => setSelectedCategory(item)}
+                                >
+                                    <Text style={[
+                                        styles.categoryText,
+                                        isActive && styles.categoryTextActive,
+                                        isActive && config && { color: config.color }
+                                    ]}>
+                                        {label}
+                                    </Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </ScrollView>
+                }
+                ListEmptyComponent={
+                    <View style={styles.emptyContainer}>
+                        <Text style={styles.emptyIcon}>📂</Text>
+                        <Text style={styles.emptyTitle}>
+                            {searchQuery ? 'Tidak ditemukan' : 'Belum ada note'}
+                        </Text>
+                        <Text style={styles.emptySubtitle}>
+                            {searchQuery ? 'Coba kata kunci lain' : 'Mulai simpan catatan Anda'}
+                        </Text>
+                    </View>
+                }
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={handleRefresh}
+                        tintColor="#3b82f6"
+                    />
+                }
+                renderItem={({ item }) => (
+                    <EntryCard
+                        entry={item}
+                        onEdit={() => navigation.navigate('AddEdit', { entry: item })}
+                        onDelete={() => handleDelete(item.id)}
+                        onToggleFavorite={(isFavorite) => handleToggleFavorite(item.id, isFavorite)}
+                        onPress={() => {
+                            setDetailNote(item);
+                            setShowDetailModal(true);
+                        }}
+                    />
+                )}
+            />
 
             {/* FAB */}
             <TouchableOpacity
@@ -272,7 +275,7 @@ export default function HomeScreen() {
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
                         <View style={styles.modalIconContainer}>
-                            <Text style={styles.modalIcon}>👋</Text>
+                            <Text style={styles.modalIcon}>⎋</Text>
                         </View>
                         <Text style={styles.modalTitle}>Keluar?</Text>
                         <Text style={styles.modalMessage}>
@@ -294,6 +297,90 @@ export default function HomeScreen() {
                         </View>
                     </View>
                 </View>
+            </Modal>
+
+            {/* Delete Confirmation Modal */}
+            <Modal
+                visible={showDeleteModal}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setShowDeleteModal(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <View style={styles.deleteIconContainer}>
+                            <Text style={styles.deleteModalIcon}>✕</Text>
+                        </View>
+                        <Text style={styles.modalTitle}>Hapus Note?</Text>
+                        <Text style={styles.modalMessage}>
+                            Data yang dihapus tidak dapat dikembalikan.
+                        </Text>
+                        <View style={styles.modalButtons}>
+                            <TouchableOpacity
+                                style={styles.modalCancelBtn}
+                                onPress={() => setShowDeleteModal(false)}
+                            >
+                                <Text style={styles.modalCancelText}>Batal</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.modalConfirmBtn}
+                                onPress={confirmDelete}
+                            >
+                                <Text style={styles.modalConfirmText}>Ya, Hapus</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Note Detail Modal */}
+            <Modal
+                visible={showDetailModal}
+                transparent
+                animationType="slide"
+                onRequestClose={() => setShowDetailModal(false)}
+            >
+                <TouchableOpacity
+                    style={styles.detailModalOverlay}
+                    activeOpacity={1}
+                    onPress={() => setShowDetailModal(false)}
+                >
+                    <TouchableOpacity
+                        activeOpacity={1}
+                        style={styles.detailModalContent}
+                        onPress={(e) => e.stopPropagation()}
+                    >
+                        <View style={styles.detailModalHeader}>
+                            <TouchableOpacity onPress={() => setShowDetailModal(false)}>
+                                <Text style={styles.detailCloseBtn}>Tutup</Text>
+                            </TouchableOpacity>
+                        </View>
+                        {detailNote && (
+                            <RNScrollView style={styles.detailScrollView} showsVerticalScrollIndicator={false}>
+                                <View style={[
+                                    styles.detailCategoryBadge,
+                                    { backgroundColor: CATEGORY_CONFIG[detailNote.category].bg }
+                                ]}>
+                                    <Text style={[
+                                        styles.detailCategoryText,
+                                        { color: CATEGORY_CONFIG[detailNote.category].color }
+                                    ]}>
+                                        {CATEGORY_CONFIG[detailNote.category].label}
+                                    </Text>
+                                </View>
+                                <Text style={styles.detailTitle}>{detailNote.title}</Text>
+                                <Text style={styles.detailContent} selectable>
+                                    {detailNote.content}
+                                </Text>
+                                <Text style={styles.detailTimestamp}>
+                                    Dibuat: {new Date(detailNote.created_at).toLocaleDateString('id-ID', {
+                                        day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                                    })}
+                                </Text>
+                            </RNScrollView>
+                        )}
+                    </TouchableOpacity>
+                </TouchableOpacity>
             </Modal>
         </View>
     );
@@ -366,8 +453,9 @@ const styles = StyleSheet.create({
         borderColor: '#e2e8f0',
     },
     searchIcon: {
-        fontSize: 16,
-        marginRight: 12,
+        fontSize: 18,
+        marginRight: 10,
+        color: '#94a3b8',
     },
     searchInput: {
         flex: 1,
@@ -375,21 +463,19 @@ const styles = StyleSheet.create({
         color: '#1e293b',
         fontSize: 15,
     },
-    categoriesContainer: {
+    categoriesInList: {
+        marginLeft: -20,
         paddingLeft: 20,
-        marginTop: 16,
-        marginBottom: 16,
-        height: 55,
+        marginTop: 12,
+        marginBottom: 12,
     },
     categoryButton: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingHorizontal: 20,
-        paddingVertical: 12,
-        borderRadius: 25,
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 20,
         backgroundColor: '#ffffff',
-        marginRight: 10,
-        borderWidth: 1.5,
+        marginRight: 8,
+        borderWidth: 1,
         borderColor: '#e2e8f0',
     },
     categoryButtonActive: {
@@ -398,10 +484,8 @@ const styles = StyleSheet.create({
     },
     categoryText: {
         color: '#64748b',
-        fontSize: 14,
+        fontSize: 13,
         fontWeight: '600',
-        lineHeight: 18,
-        includeFontPadding: false,
     },
     categoryTextActive: {
         color: '#3b82f6',
@@ -409,12 +493,13 @@ const styles = StyleSheet.create({
     listContainer: {
         paddingHorizontal: 20,
         paddingBottom: 100,
+        flexGrow: 1,
     },
     emptyContainer: {
-        flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        paddingBottom: 100,
+        paddingTop: 60,
+        paddingBottom: 60,
     },
     emptyIcon: {
         fontSize: 56,
@@ -433,24 +518,24 @@ const styles = StyleSheet.create({
     },
     fab: {
         position: 'absolute',
-        bottom: 30,
+        bottom: 40,
         right: 20,
-        width: 60,
-        height: 60,
-        borderRadius: 16,
+        width: 50,
+        height: 50,
+        borderRadius: 25,
         backgroundColor: '#3b82f6',
         justifyContent: 'center',
         alignItems: 'center',
-        shadowColor: '#3b82f6',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 8,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 4,
+        elevation: 4,
     },
     fabText: {
-        fontSize: 28,
+        fontSize: 24,
         color: '#FFF',
-        fontWeight: '400',
+        fontWeight: '300',
     },
     // Modal styles
     modalOverlay: {
@@ -469,16 +554,17 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     modalIconContainer: {
-        width: 72,
-        height: 72,
-        borderRadius: 36,
-        backgroundColor: '#fef3c7',
+        width: 64,
+        height: 64,
+        borderRadius: 32,
+        backgroundColor: '#f1f5f9',
         justifyContent: 'center',
         alignItems: 'center',
         marginBottom: 16,
     },
     modalIcon: {
-        fontSize: 32,
+        fontSize: 28,
+        color: '#1e293b',
     },
     modalTitle: {
         fontSize: 20,
@@ -522,5 +608,76 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '600',
         color: '#ffffff',
+    },
+    deleteIconContainer: {
+        width: 64,
+        height: 64,
+        borderRadius: 32,
+        backgroundColor: '#fee2e2',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    deleteModalIcon: {
+        fontSize: 28,
+        color: '#dc2626',
+    },
+    // Detail Modal Styles
+    detailModalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'flex-end',
+    },
+    detailModalContent: {
+        backgroundColor: '#ffffff',
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        maxHeight: '80%',
+        paddingBottom: 40,
+    },
+    detailModalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        paddingHorizontal: 20,
+        paddingVertical: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#f1f5f9',
+    },
+    detailCloseBtn: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#3b82f6',
+    },
+    detailScrollView: {
+        paddingHorizontal: 20,
+        paddingTop: 16,
+    },
+    detailCategoryBadge: {
+        alignSelf: 'flex-start',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 12,
+        marginBottom: 12,
+    },
+    detailCategoryText: {
+        fontSize: 12,
+        fontWeight: '600',
+    },
+    detailTitle: {
+        fontSize: 22,
+        fontWeight: 'bold',
+        color: '#1e293b',
+        marginBottom: 16,
+    },
+    detailContent: {
+        fontSize: 16,
+        color: '#475569',
+        lineHeight: 26,
+        marginBottom: 24,
+    },
+    detailTimestamp: {
+        fontSize: 12,
+        color: '#94a3b8',
+        marginBottom: 20,
     },
 });

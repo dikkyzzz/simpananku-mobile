@@ -10,7 +10,8 @@ import {
 } from 'react-native';
 import { supabase } from '../lib/supabase';
 import * as WebBrowser from 'expo-web-browser';
-import * as AuthSession from 'expo-auth-session';
+import { makeRedirectUri } from 'expo-auth-session';
+import * as Linking from 'expo-linking';
 
 // Ensure auth session is completed
 WebBrowser.maybeCompleteAuthSession();
@@ -21,10 +22,14 @@ export default function LoginScreen() {
     const handleGoogleLogin = async () => {
         setLoading(true);
         try {
-            // Get redirect URL
-            const redirectUrl = AuthSession.makeRedirectUri({
+            // For Expo Go, use the expo linking URL
+            // For standalone apps, use the custom scheme
+            const redirectUrl = makeRedirectUri({
                 scheme: 'simpananku',
+                path: 'auth/callback',
             });
+
+            console.log('Redirect URL:', redirectUrl);
 
             const { data, error } = await supabase.auth.signInWithOAuth({
                 provider: 'google',
@@ -37,31 +42,60 @@ export default function LoginScreen() {
             if (error) throw error;
 
             if (data?.url) {
+                console.log('OAuth URL:', data.url);
+
                 // Open browser for OAuth
                 const result = await WebBrowser.openAuthSessionAsync(
                     data.url,
                     redirectUrl
                 );
 
-                if (result.type === 'success' && result.url) {
-                    // Parse the callback URL
-                    const url = new URL(result.url);
-                    const hashParams = new URLSearchParams(url.hash.substring(1));
+                console.log('Browser result:', result);
 
-                    const access_token = hashParams.get('access_token');
-                    const refresh_token = hashParams.get('refresh_token');
+                if (result.type === 'success' && result.url) {
+                    // Parse the callback URL - check both hash and query params
+                    const url = new URL(result.url);
+
+                    // Try hash params first (implicit flow)
+                    let access_token: string | null = null;
+                    let refresh_token: string | null = null;
+
+                    if (url.hash) {
+                        const hashParams = new URLSearchParams(url.hash.substring(1));
+                        access_token = hashParams.get('access_token');
+                        refresh_token = hashParams.get('refresh_token');
+                    }
+
+                    // Fall back to query params (PKCE flow)
+                    if (!access_token) {
+                        const queryParams = new URLSearchParams(url.search);
+                        access_token = queryParams.get('access_token');
+                        refresh_token = queryParams.get('refresh_token');
+                    }
+
+                    console.log('Tokens found:', { access_token: !!access_token, refresh_token: !!refresh_token });
 
                     if (access_token && refresh_token) {
-                        // Set the session
                         const { error: sessionError } = await supabase.auth.setSession({
                             access_token,
                             refresh_token,
                         });
                         if (sessionError) throw sessionError;
+                    } else {
+                        // If no tokens, try to get session from URL code
+                        const code = new URLSearchParams(url.search).get('code');
+                        if (code) {
+                            console.log('Found code, exchanging for session');
+                            const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+                            if (exchangeError) throw exchangeError;
+                        }
                     }
+                } else if (result.type === 'cancel') {
+                    console.log('User cancelled login');
                 }
             }
         } catch (error: any) {
+            console.error('Login error:', error);
             Alert.alert('Error', error.message || 'Gagal login dengan Google');
         } finally {
             setLoading(false);

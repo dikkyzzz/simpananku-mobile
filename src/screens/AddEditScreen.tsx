@@ -90,7 +90,7 @@ export default function AddEditScreen() {
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-                    <Text style={styles.backIcon}>←</Text>
+                    <Text style={styles.backText}>Back</Text>
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>
                     {editEntry ? 'Edit Note' : 'Tambah Note'}
@@ -104,11 +104,9 @@ export default function AddEditScreen() {
                 showsVerticalScrollIndicator={false}
             >
                 {/* Title */}
-                <Text style={styles.label}>Judul</Text>
+                <Text style={styles.label}>Judul Note :3</Text>
                 <TextInput
                     style={styles.input}
-                    placeholder="Masukkan judul..."
-                    placeholderTextColor="#94a3b8"
                     value={title}
                     onChangeText={setTitle}
                 />
@@ -132,7 +130,6 @@ export default function AddEditScreen() {
                                 ]}
                                 onPress={() => setCategory(cat)}
                             >
-                                <Text style={styles.categoryEmoji}>{config.icon}</Text>
                                 <Text style={[
                                     styles.categoryLabel,
                                     isActive && { color: config.color }
@@ -145,11 +142,9 @@ export default function AddEditScreen() {
                 </ScrollView>
 
                 {/* Content */}
-                <Text style={styles.label}>Konten</Text>
+                <Text style={styles.label}>Your Note :3</Text>
                 <TextInput
                     style={[styles.input, styles.textArea]}
-                    placeholder="Masukkan konten..."
-                    placeholderTextColor="#94a3b8"
                     value={content}
                     onChangeText={setContent}
                     multiline
@@ -162,7 +157,9 @@ export default function AddEditScreen() {
                     style={styles.favoriteToggle}
                     onPress={() => setIsFavorite(!isFavorite)}
                 >
-                    <Text style={styles.favoriteIcon}>{isFavorite ? '⭐' : '☆'}</Text>
+                    <Text style={[styles.favoriteIcon, isFavorite && styles.favoriteActive]}>
+                        {isFavorite ? '★' : '☆'}
+                    </Text>
                     <Text style={styles.favoriteText}>Tandai sebagai favorit</Text>
                 </TouchableOpacity>
 
@@ -176,7 +173,7 @@ export default function AddEditScreen() {
                         <ActivityIndicator color="#FFF" />
                     ) : (
                         <Text style={styles.saveButtonText}>
-                            {editEntry ? 'Update' : 'Simpan'}
+                            {editEntry ? 'Update' : 'Save :3'}
                         </Text>
                     )}
                 </TouchableOpacity>
@@ -204,16 +201,22 @@ const styles = StyleSheet.create({
         borderBottomColor: '#e2e8f0',
     },
     backBtn: {
-        width: 44,
-        height: 44,
-        borderRadius: 12,
-        backgroundColor: '#f1f5f9',
-        justifyContent: 'center',
+        flexDirection: 'row',
         alignItems: 'center',
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        borderRadius: 10,
+        backgroundColor: '#f1f5f9',
     },
     backIcon: {
-        fontSize: 20,
-        color: '#1e293b',
+        fontSize: 16,
+        color: '#3b82f6',
+        marginRight: 4,
+    },
+    backText: {
+        fontSize: 14,
+        color: '#3b82f6',
+        fontWeight: '600',
     },
     headerTitle: {
         fontSize: 18,
@@ -284,6 +287,10 @@ const styles = StyleSheet.create({
     favoriteIcon: {
         fontSize: 24,
         marginRight: 12,
+        color: '#94a3b8',
+    },
+    favoriteActive: {
+        color: '#1e293b',
     },
     favoriteText: {
         fontSize: 15,
